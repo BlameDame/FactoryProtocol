@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <cmath>
 
 using namespace std;
 
@@ -25,9 +26,34 @@ private:
     sf::RenderWindow window;
     sf::Font font;
     
+        // Lever animation system
+    enum LeverFrame {
+        BLACK_UP = 0,    // First frame
+        BLACK_MID = 1,   // Second frame  
+        BLACK_DOWN = 2,  // Third frame
+        GOLD_UP = 3,     // Fourth frame
+        GOLD_MID = 4,    // Fifth frame
+        GOLD_DOWN = 5    // Sixth frame
+    };
+    
+    struct LeverAnimation {
+        float currentFrame = 1.0f;     // Current animation frame (can be fractional)
+        string targetState = "UP"; // Where we're animating to
+        string currentState = "Middle"; // Current logical state
+        bool isGold = false;           // Color variant
+        float animationSpeed = 6.0f;   // Frames per second
+    } leverAnim;
+    
+    sf::IntRect leverFrameRect; // For sprite sheet frame selection
+
     // UI Elements
     sf::RectangleShape pressureGauge;
     sf::RectangleShape temperatureGauge;
+    sf::Texture gearTexture;
+    sf::Sprite gearSprite;
+    sf::Texture leverTexture;
+    sf::Sprite leverSprite;
+    sf::Clock spriteClock;
     sf::Text statusText;
 
     
@@ -43,6 +69,20 @@ private:
     bool mechanicalWantsReplay;
     bool electricalWantsReplay;
 
+    void initializeLeverFrames() {
+    // Calculate frame dimensions from the loaded texture
+    int frameWidth = (leverTexture.getSize().x / 3);  // 6 frames horizontally
+    int frameHeight = leverTexture.getSize().y / 2;     // Full height
+    
+    leverFrameRect = sf::IntRect(0, 0, frameWidth, frameHeight);
+    leverSprite.setTextureRect(leverFrameRect);
+    
+    // Initialize animation state to middle frame
+    leverAnim.currentFrame = (leverAnim.isGold ? GOLD_MID : BLACK_MID);
+    leverAnim.currentState = "Middle";
+    leverAnim.targetState = "Middle";
+}
+
     void initializeGraphics() {
         window.create(sf::VideoMode(800, 600), "Machine Game - Mechanical");
         window.setFramerateLimit(60);
@@ -53,17 +93,113 @@ private:
         
         // Initialize UI elements
         pressureGauge.setSize(sf::Vector2f(30, 200));
-        pressureGauge.setPosition(100, 300);
+        pressureGauge.setPosition(250, 200);
         pressureGauge.setFillColor(sf::Color::Red);
         
         temperatureGauge.setSize(sf::Vector2f(30, 200));
-        temperatureGauge.setPosition(200, 300);
+        temperatureGauge.setPosition(350, 200);
         temperatureGauge.setFillColor(sf::Color::Yellow);
         
+        if (!gearTexture.loadFromFile("./assets/gear.png")) {
+            std::cout << "Warning: failed to load ./assets/gear.png — using placeholder\n";
+            sf::Image img; img.create(128, 128, sf::Color(150,150,150));
+            gearTexture.loadFromImage(img);
+        }
+        gearSprite.setTexture(gearTexture);
+        gearSprite.setOrigin(gearTexture.getSize().x / 2.f, gearTexture.getSize().y / 2.f);
+        gearSprite.setScale(3.5f, 3.5f);
+        gearSprite.setPosition(200.f, 470.f);
+
+        // Load lever sprite (fallback placeholder)
+        if (!leverTexture.loadFromFile("./assets/lever.png")) {
+            std::cout << "Warning: failed to load ./assets/lever.png — using placeholder\n";
+            sf::Image img; img.create(32, 128, sf::Color(120,120,120));
+            leverTexture.loadFromImage(img);
+        }
+        int frameWidth = leverTexture.getSize().x / 3;
+        leverSprite.setTexture(leverTexture);
+        leverSprite.setOrigin(frameWidth / 2.f, (leverTexture.getSize().y / 2) * 0.1f);
+        leverSprite.setScale(2.f, 2.f);
+        leverSprite.setPosition(450.f, 400.f);
+        
+        initializeLeverFrames();
+
         statusText.setFont(font);
         statusText.setCharacterSize(24);
         statusText.setFillColor(sf::Color::White);
         statusText.setPosition(10, 10);
+    }
+    void updateSpriteStates() {
+        // compute delta time
+        float dt = spriteClock.restart().asSeconds();
+
+        // Gear: continuous rotation when running; stopped = no rotation
+        updateLeverAnimationSmooth(dt);
+        float gearSpeedDegPerSec = 0.f;
+        if (controls.gear == "Clockwise") gearSpeedDegPerSec = 180.f;          // tweak as needed
+        else if (controls.gear == "Counterclockwise") gearSpeedDegPerSec = -180.f;
+        gearSprite.rotate(gearSpeedDegPerSec * dt); // accumulates rotation over frames
+
+        // Keep lever static for now — don't modify leverSprite rotation here.
+        // Optional: enforce a default orientation once
+        // leverSprite.setRotation(0.f);
+    }
+
+    void updateLeverAnimationSmooth(float deltaTime) {
+    LeverFrame targetFrame;
+    
+    // Determine target frame based ONLY on controls.lever
+    if (controls.lever == "Up") {
+        targetFrame = leverAnim.isGold ? GOLD_UP : BLACK_UP;
+    } else if (controls.lever == "Down") {
+        targetFrame = leverAnim.isGold ? GOLD_DOWN : BLACK_DOWN;
+    } else { // "Middle"  
+        targetFrame = leverAnim.isGold ? GOLD_MID : BLACK_MID;
+    }
+
+    float targetFrameFloat = static_cast<float>(targetFrame);
+    
+    if (abs(leverAnim.currentFrame - targetFrameFloat) > 0.1f) {
+        // Smoothly interpolate towards target
+        leverAnim.currentFrame += (targetFrameFloat - leverAnim.currentFrame) * leverAnim.animationSpeed * deltaTime;
+    } else {
+        // Animation complete - snap to target and update state
+        leverAnim.currentFrame = targetFrameFloat;
+        leverAnim.currentState = controls.lever;
+    }
+
+    // Update sprite frame for 3x2 layout
+    int displayFrame = static_cast<int>(round(leverAnim.currentFrame));
+    displayFrame = max(0, min(5, displayFrame));
+    
+    // Calculate 2D position in sprite sheet
+    int frameWidth = leverTexture.getSize().x / 3;   // 3 columns
+    int frameHeight = leverTexture.getSize().y / 2;  // 2 rows
+    
+    int col = displayFrame % 3;  // Column: 0=Up, 1=Mid, 2=Down
+    int row = displayFrame / 3;  // Row: 0=Black, 1=Gold
+    
+    leverFrameRect.left = col * frameWidth;
+    leverFrameRect.top = row * frameHeight;
+    leverFrameRect.width = frameWidth;
+    leverFrameRect.height = frameHeight;
+    
+    leverSprite.setTextureRect(leverFrameRect);
+}
+
+    void toggleLeverColor() {
+        // Store current relative position
+        string currentLogicalState = leverAnim.currentState;
+        leverAnim.isGold = !leverAnim.isGold;
+        
+        // Map to new color variant
+        if (currentLogicalState == "Up") {
+            leverAnim.currentFrame = leverAnim.isGold ? GOLD_UP : BLACK_UP;
+        } else if (currentLogicalState == "Down") {
+            leverAnim.currentFrame = leverAnim.isGold ? GOLD_DOWN : BLACK_DOWN;
+        } else {
+            leverAnim.currentFrame = leverAnim.isGold ? GOLD_MID : BLACK_MID;
+        }
     }
     void handleEvents() {
         sf::Event event;
@@ -125,6 +261,12 @@ private:
         // Draw UI elements
         window.draw(pressureGauge);
         window.draw(temperatureGauge);
+
+          updateSpriteStates();
+        window.draw(pressureGauge);
+        window.draw(temperatureGauge);
+        window.draw(gearSprite);
+        window.draw(leverSprite);
         
         // Update status text
         std::stringstream ss;
@@ -274,6 +416,7 @@ public:
 
     while (window.isOpen() && connected) {
             handleEvents();
+            updateSpriteStates();
             render();
         }
     

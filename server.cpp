@@ -380,10 +380,10 @@ public:
 
         // Apply button reset if pressed
         if (gameState.electrical.button == "Pressed") {
+            printf("Button pressed: Machine reset to safe values.\n");
             gameState.machine.pressure = 100.0;
             gameState.machine.temperature = 200.0;
             // gameState.electrical.button = "Idle";
-            printf("Button pressed: Machine reset to safe values.\n");
         }
 
         // Check win/fail conditions
