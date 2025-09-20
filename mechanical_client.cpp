@@ -17,6 +17,13 @@ class MechanicalClient {
 private:
     int clientSocket;
     bool connected;
+    struct LeverAnimation {
+        float currentFrame = 1.0f;     
+        string targetState = "UP"; 
+        string currentState = "Middle"; 
+        bool isGold = false;           
+        float animationSpeed = 6.0f;   
+    } leverAnim;
     struct LocalControls {
         string gear = "Stopped";
         string lever = "Middle";
@@ -26,25 +33,16 @@ private:
     sf::RenderWindow window;
     sf::Font font;
     
-        // Lever animation system
     enum LeverFrame {
-        BLACK_UP = 0,    // First frame
-        BLACK_MID = 1,   // Second frame  
-        BLACK_DOWN = 2,  // Third frame
-        GOLD_UP = 3,     // Fourth frame
-        GOLD_MID = 4,    // Fifth frame
-        GOLD_DOWN = 5    // Sixth frame
+        BLACK_DOWN = 0,
+        BLACK_MID = 1,  
+        BLACK_UP = 2,
+        GOLD_DOWN = 3,
+        GOLD_MID = 4,
+        GOLD_UP = 5
     };
     
-    struct LeverAnimation {
-        float currentFrame = 1.0f;     // Current animation frame (can be fractional)
-        string targetState = "UP"; // Where we're animating to
-        string currentState = "Middle"; // Current logical state
-        bool isGold = false;           // Color variant
-        float animationSpeed = 6.0f;   // Frames per second
-    } leverAnim;
-    
-    sf::IntRect leverFrameRect; // For sprite sheet frame selection
+    sf::IntRect leverFrameRect;
 
     // UI Elements
     sf::RectangleShape pressureGauge;
@@ -55,8 +53,9 @@ private:
     sf::Sprite leverSprite;
     sf::Clock spriteClock;
     sf::Text statusText;
+    sf::Text gearStopText;
+    sf::Text leverResetText;
 
-    
     // Current machine state (received from server)
     double pressure;
     double temperature;
@@ -70,9 +69,9 @@ private:
     bool electricalWantsReplay;
 
     void initializeLeverFrames() {
-    // Calculate frame dimensions from the loaded texture
-    int frameWidth = (leverTexture.getSize().x / 3);  // 6 frames horizontally
-    int frameHeight = leverTexture.getSize().y / 2;     // Full height
+    
+    int frameWidth = (leverTexture.getSize().x / 3);
+    int frameHeight = leverTexture.getSize().y / 2;
     
     leverFrameRect = sf::IntRect(0, 0, frameWidth, frameHeight);
     leverSprite.setTextureRect(leverFrameRect);
@@ -105,17 +104,17 @@ private:
             sf::Image img; img.create(128, 128, sf::Color(150,150,150));
             gearTexture.loadFromImage(img);
         }
-        gearSprite.setTexture(gearTexture);
-        gearSprite.setOrigin(gearTexture.getSize().x / 2.f, gearTexture.getSize().y / 2.f);
-        gearSprite.setScale(3.5f, 3.5f);
-        gearSprite.setPosition(200.f, 470.f);
-
-        // Load lever sprite (fallback placeholder)
         if (!leverTexture.loadFromFile("./assets/lever.png")) {
             std::cout << "Warning: failed to load ./assets/lever.png — using placeholder\n";
             sf::Image img; img.create(32, 128, sf::Color(120,120,120));
             leverTexture.loadFromImage(img);
         }
+
+        gearSprite.setTexture(gearTexture);
+        gearSprite.setOrigin(gearTexture.getSize().x / 2.f, gearTexture.getSize().y / 2.f);
+        gearSprite.setScale(4.5f, 4.5f);
+        gearSprite.setPosition(200.f, 470.f);
+
         int frameWidth = leverTexture.getSize().x / 3;
         leverSprite.setTexture(leverTexture);
         leverSprite.setOrigin(frameWidth / 2.f, (leverTexture.getSize().y / 2) * 0.1f);
@@ -128,6 +127,19 @@ private:
         statusText.setCharacterSize(24);
         statusText.setFillColor(sf::Color::White);
         statusText.setPosition(10, 10);
+
+        gearStopText.setFont(font);
+        gearStopText.setCharacterSize(16);
+        gearStopText.setFillColor(sf::Color::White);
+        gearStopText.setString("Click Gear or press 'G' to toggle\nPress 'S' to Stop");
+        gearStopText.setPosition(200, 550);
+
+        leverResetText.setFont(font);
+        leverResetText.setCharacterSize(16);
+        leverResetText.setFillColor(sf::Color::White);
+        leverResetText.setString("Click Lever or press 'L' to toggle\nPress 'M' for Middle");
+        leverResetText.setPosition(400, 550);
+
     }
     void updateSpriteStates() {
         // compute delta time
@@ -139,21 +151,16 @@ private:
         if (controls.gear == "Clockwise") gearSpeedDegPerSec = 180.f;          // tweak as needed
         else if (controls.gear == "Counterclockwise") gearSpeedDegPerSec = -180.f;
         gearSprite.rotate(gearSpeedDegPerSec * dt); // accumulates rotation over frames
-
-        // Keep lever static for now — don't modify leverSprite rotation here.
-        // Optional: enforce a default orientation once
-        // leverSprite.setRotation(0.f);
     }
 
     void updateLeverAnimationSmooth(float deltaTime) {
     LeverFrame targetFrame;
-    
-    // Determine target frame based ONLY on controls.lever
+
     if (controls.lever == "Up") {
         targetFrame = leverAnim.isGold ? GOLD_UP : BLACK_UP;
     } else if (controls.lever == "Down") {
         targetFrame = leverAnim.isGold ? GOLD_DOWN : BLACK_DOWN;
-    } else { // "Middle"  
+    } else {
         targetFrame = leverAnim.isGold ? GOLD_MID : BLACK_MID;
     }
 
@@ -206,14 +213,28 @@ private:
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed)
                 window.close();
-            
+
+            if (event.type == sf::Event::MouseButtonPressed) {
+                if (event.mouseButton.button == sf::Mouse::Left) {
+                    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+                    if (leverSprite.getGlobalBounds().contains(mousePos.x, mousePos.y)) {
+                        controls.lever = (controls.lever == "Up") ? "Down" : "Up";
+                        sendMechanicalUpdate(controls.gear, controls.lever, controls.valve, controls.dial);
+                    }
+                    if(gearSprite.getGlobalBounds().contains(mousePos.x, mousePos.y)) {
+                        controls.gear = (controls.gear == "Clockwise") ? "Counterclockwise" : "Clockwise";
+                        sendMechanicalUpdate(controls.gear, controls.lever, controls.valve, controls.dial);
+                    }
+                }
+            }
+
+                                //Keyboard Controls
             if (event.type == sf::Event::KeyPressed) {
                 switch (event.key.code) {
                     case sf::Keyboard::G:
                     controls.gear = (controls.gear == "Clockwise") ? "Counterclockwise" : "Clockwise";
                         sendMechanicalUpdate(controls.gear, controls.lever, controls.valve, controls.dial);
                         break;
-                    // Add more controls here
                     case sf::Keyboard::S:
                     controls.gear = "Stopped";
                         sendMechanicalUpdate(controls.gear, controls.lever, controls.valve, controls.dial);
@@ -265,6 +286,8 @@ private:
           updateSpriteStates();
         window.draw(pressureGauge);
         window.draw(temperatureGauge);
+        window.draw(leverResetText);
+        window.draw(gearStopText);
         window.draw(gearSprite);
         window.draw(leverSprite);
         
