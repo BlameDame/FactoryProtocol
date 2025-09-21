@@ -1,21 +1,22 @@
 #include <SFML/Graphics.hpp>
-#include <iostream>
-#include <string>
-#include <vector>
-#include <map>
-#include <algorithm>
-#include <cmath>
-#include <cstdlib>
-#include <ctime>
-#include <fstream>
-#include <thread>
-#include <chrono>
-#include <mutex>
-#include <sstream>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <algorithm>
 #include <unistd.h>
+#include <iostream>
+#include <cstdlib>
+#include <sstream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <thread>
+#include <chrono>
+#include <cmath>
+#include <ctime>
+#include <mutex>
+#include <map>
+
 
 using namespace std;
 

@@ -6,12 +6,14 @@ LDFLAGS = -pthread
 SFML_LIBS = `pkg-config --libs sfml-all`
 
 # Target executables
-TARGETS = server mechanical_client electrical_client
+TARGETS = server mechanical_client electrical_client audio
 
 # Source files
 SERVER_SRC = server.cpp
 MECHANICAL_SRC = mechanical_client.cpp
 ELECTRICAL_SRC = electrical_client.cpp
+AUDIO_SRC = audio.cpp
+APP_SRC = app.cpp
 
 # Build all targets
 all: $(TARGETS)
@@ -27,6 +29,14 @@ mechanical_client: $(MECHANICAL_SRC)
 # Electrical client executable
 electrical_client: $(ELECTRICAL_SRC)
 	$(CXX) $(CXXFLAGS) -o $@ $< $(SFML_LIBS) $(LDFLAGS)
+
+#Audio module (if needed separately)
+audio: $(AUDIO_SRC)
+	$(CXX) $(CXXFLAGS) -c $< $(LDFLAGS)
+
+# App executable
+app: $(APP_SRC)
+	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
 
 # Clean build artifacts
 clean:
@@ -52,6 +62,10 @@ run-mechanical: mechanical_client
 run-electrical: electrical_client
 	./electrical_client
 
+# Run app (for testing)
+run-app: app
+	./app
+
 # Debug builds (with debugging symbols)
 debug: CXXFLAGS += -g -DDEBUG
 debug: all
@@ -61,11 +75,13 @@ help:
 	@echo "Available targets:"
 	@echo "  all              - Build all executables"
 	@echo "  server           - Build server only"
+	@echo "  app              - Build app only"
 	@echo "  mechanical_client - Build mechanical client only"
 	@echo "  electrical_client - Build electrical client only"
 	@echo "  clean            - Remove build artifacts"
 	@echo "  debug            - Build with debug symbols"
 	@echo "  run-server       - Build and run server"
+	@echo "  run-app          - Build and run app"
 	@echo "  run-mechanical   - Build and run mechanical client"
 	@echo "  run-electrical   - Build and run electrical client"
 	@echo "  install          - Install to system (requires sudo)"

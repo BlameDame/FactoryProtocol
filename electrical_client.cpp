@@ -1,14 +1,15 @@
-#include <iostream>
-#include <string>
-#include <thread>
-#include <sstream>
-#include <vector>
-#include <chrono>
+#include <SFML/Graphics.hpp>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "audio.cpp"
 #include <unistd.h>
-#include <SFML/Graphics.hpp>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
+#include <chrono>
 
 using namespace std;
 
@@ -33,6 +34,8 @@ private:
     // SFML members
     sf::RenderWindow window;
     sf::Font font;
+
+    AudioManager audioManager;
     
     // UI Elements
     sf::RectangleShape switchButton;
@@ -266,6 +269,7 @@ void run() {
 
         while (window.isOpen() && connected){
             handleEvents();
+            audioManager.update();
             render();
         }
 

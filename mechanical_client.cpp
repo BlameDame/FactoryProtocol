@@ -1,17 +1,19 @@
 #include <SFML/Graphics.hpp>
-#include <iostream>
-#include <string>
-#include <thread>
-#include <sstream>
-#include <vector>
-#include <chrono>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "audio.cpp"
 #include <unistd.h>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
+#include <chrono>
 #include <cmath>
 
 using namespace std;
+using namespace sf;
 
 class MechanicalClient {
 private:
@@ -30,8 +32,8 @@ private:
         string valve = "Closed";
         int dial = 5;
     } controls;
-    sf::RenderWindow window;
-    sf::Font font;
+    RenderWindow window;
+    Font font;
     
     enum LeverFrame {
         BLACK_DOWN = 0,
@@ -44,17 +46,19 @@ private:
     
     sf::IntRect leverFrameRect;
 
+    AudioManager audioManager;
+
     // UI Elements
-    sf::RectangleShape pressureGauge;
-    sf::RectangleShape temperatureGauge;
-    sf::Texture gearTexture;
-    sf::Sprite gearSprite;
-    sf::Texture leverTexture;
-    sf::Sprite leverSprite;
-    sf::Clock spriteClock;
-    sf::Text statusText;
-    sf::Text gearStopText;
-    sf::Text leverResetText;
+    RectangleShape pressureGauge;
+    RectangleShape temperatureGauge;
+    Texture gearTexture;
+    Sprite gearSprite;
+    Texture leverTexture;
+    Sprite leverSprite;
+    Clock spriteClock;
+    Text statusText;
+    Text gearStopText;
+    Text leverResetText;
 
     // Current machine state (received from server)
     double pressure;
@@ -83,7 +87,7 @@ private:
 }
 
     void initializeGraphics() {
-        window.create(sf::VideoMode(800, 600), "Machine Game - Mechanical");
+        window.create(VideoMode(800, 600), "Machine Game - Mechanical");
         window.setFramerateLimit(60);
         
         if (!font.loadFromFile("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")) {
@@ -91,21 +95,21 @@ private:
         }
         
         // Initialize UI elements
-        pressureGauge.setSize(sf::Vector2f(30, 200));
+        pressureGauge.setSize(Vector2f(30, 200));
         pressureGauge.setPosition(250, 200);
-        pressureGauge.setFillColor(sf::Color::Red);
+        pressureGauge.setFillColor(Color::Red);
         
-        temperatureGauge.setSize(sf::Vector2f(30, 200));
+        temperatureGauge.setSize(Vector2f(30, 200));
         temperatureGauge.setPosition(350, 200);
         temperatureGauge.setFillColor(sf::Color::Yellow);
         
-        if (!gearTexture.loadFromFile("./assets/gear.png")) {
-            std::cout << "Warning: failed to load ./assets/gear.png — using placeholder\n";
+        if (!gearTexture.loadFromFile("./assets/images/gear.png")) {
+            std::cout << "Warning: failed to load ./assets/images/gear.png — using placeholder\n";
             sf::Image img; img.create(128, 128, sf::Color(150,150,150));
             gearTexture.loadFromImage(img);
         }
-        if (!leverTexture.loadFromFile("./assets/lever.png")) {
-            std::cout << "Warning: failed to load ./assets/lever.png — using placeholder\n";
+        if (!leverTexture.loadFromFile("./assets/images/lever.png")) {
+            std::cout << "Warning: failed to load ./assets/images/lever.png — using placeholder\n";
             sf::Image img; img.create(32, 128, sf::Color(120,120,120));
             leverTexture.loadFromImage(img);
         }
@@ -180,8 +184,8 @@ private:
     displayFrame = max(0, min(5, displayFrame));
     
     // Calculate 2D position in sprite sheet
-    int frameWidth = leverTexture.getSize().x / 3;   // 3 columns
-    int frameHeight = leverTexture.getSize().y / 2;  // 2 rows
+    int frameWidth = leverTexture.getSize().x / 3;
+    int frameHeight = leverTexture.getSize().y / 2;
     
     int col = displayFrame % 3;  // Column: 0=Up, 1=Mid, 2=Down
     int row = displayFrame / 3;  // Row: 0=Black, 1=Gold
@@ -195,11 +199,11 @@ private:
 }
 
     void toggleLeverColor() {
-        // Store current relative position
+        
         string currentLogicalState = leverAnim.currentState;
         leverAnim.isGold = !leverAnim.isGold;
         
-        // Map to new color variant
+        
         if (currentLogicalState == "Up") {
             leverAnim.currentFrame = leverAnim.isGold ? GOLD_UP : BLACK_UP;
         } else if (currentLogicalState == "Down") {
@@ -274,10 +278,10 @@ private:
         
         // Update gauges based on machine state
         float pressureHeight = (pressure / 200.0f) * 200.0f;
-        pressureGauge.setSize(sf::Vector2f(30, pressureHeight));
+        pressureGauge.setSize(Vector2f(30, pressureHeight));
         
         float tempHeight = (temperature / 400.0f) * 200.0f;
-        temperatureGauge.setSize(sf::Vector2f(30, tempHeight));
+        temperatureGauge.setSize(Vector2f(30, tempHeight));
         
         // Draw UI elements
         window.draw(pressureGauge);
@@ -440,6 +444,7 @@ public:
     while (window.isOpen() && connected) {
             handleEvents();
             updateSpriteStates();
+            audioManager.update();
             render();
         }
     
