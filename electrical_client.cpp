@@ -2,13 +2,14 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "audio.cpp"
+// #include "audio.cpp"
 #include <unistd.h>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
+#include "menus.h"
 #include <chrono>
 
 using namespace std;
@@ -18,6 +19,8 @@ private:
     int clientSocket;
     bool connected;
     bool debugMode;
+    bool newGame;
+    bool gameStart;
     
     // Current machine state (received from server)
     double pressure;
@@ -31,11 +34,11 @@ private:
     bool mechanicalWantsReplay;
     bool electricalWantsReplay;
 
+    Menus menus;
+
     // SFML members
     sf::RenderWindow window;
     sf::Font font;
-
-    AudioManager audioManager;
     
     // UI Elements
     sf::RectangleShape switchButton;
@@ -268,8 +271,9 @@ void run() {
     this_thread::sleep_for(chrono::milliseconds(500));
 
         while (window.isOpen() && connected){
+            if (!gameStart)
+                menus.MainMenu(window, font, gameStart, newGame);
             handleEvents();
-            audioManager.update();
             render();
         }
 

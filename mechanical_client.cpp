@@ -2,7 +2,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "audio.cpp"
+#include "menus.h"
 #include <unistd.h>
 #include <iostream>
 #include <sstream>
@@ -19,6 +19,8 @@ class MechanicalClient {
 private:
     int clientSocket;
     bool connected;
+    bool gameStart;
+    bool newGame;
     struct LeverAnimation {
         float currentFrame = 1.0f;     
         string targetState = "UP"; 
@@ -46,7 +48,7 @@ private:
     
     sf::IntRect leverFrameRect;
 
-    AudioManager audioManager;
+    Menus menus;
 
     // UI Elements
     RectangleShape pressureGauge;
@@ -441,10 +443,11 @@ public:
         // Wait a moment for initial state
     // this_thread::sleep_for(chrono::milliseconds(500));
 
-    while (window.isOpen() && connected) {
+     while (window.isOpen() && connected) {
+            if (!gameStart)
+                menus.MainMenu(window, font, gameStart, newGame);
             handleEvents();
             updateSpriteStates();
-            audioManager.update();
             render();
         }
     
