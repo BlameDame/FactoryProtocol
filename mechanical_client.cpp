@@ -325,7 +325,7 @@ public:
         targetPressure = 150.0;
         targetTemperature = 300.0;
         timeLeft = 60;
-        gameActive = true;
+        gameActive = false;
         gameWon = false;
         gameFailed = false;
         mechanicalWantsReplay = false;
@@ -428,6 +428,13 @@ public:
             perror("send failed");
         }
     }
+    void sendPlayerReady() {
+    string message = "READY\n";
+    ssize_t sent = send(clientSocket, message.c_str(), message.length(), MSG_NOSIGNAL);
+    if (sent < 0) {
+        perror("send ready failed");
+    }
+}
 
     void sendPlayAgainResponse(bool wantsReplay) {
     string message = "PLAY_AGAIN|" + string(wantsReplay ? "YES" : "NO") + "\n";
@@ -437,23 +444,48 @@ public:
     }
 }
 
-    void run() {
+void run() {
     thread receiveThread(&MechanicalClient::receiveGameState, this);
-    
-        // Wait a moment for initial state
-    // this_thread::sleep_for(chrono::milliseconds(500));
 
-     while (window.isOpen() && connected) {
-            if (!gameStart)
-                menus.MainMenu(window, font, gameStart, newGame);
+    bool playerReady = false;  // Track if this player has clicked start
+
+    while (window.isOpen() && connected) {
+        if (!playerReady) {
+            // Show menu until player clicks start
+            menus.MainMenu(window, font, gameStart, newGame);
+            
+            if (gameStart) {
+                // Player clicked start - they're now ready
+                playerReady = true;
+                sendPlayerReady();
+                cout << "Mechanical player is ready! Waiting for electrical player...\n";
+            }
+        } else if (gameActive) {
+            // Both players ready and game is active - play normally
             handleEvents();
             updateSpriteStates();
             render();
+        } else {
+            // Player is ready but game not active yet - show waiting screen
+            window.clear(sf::Color(50, 50, 50));
+            Text waitingText("Waiting for other player...", font, 48);
+            waitingText.setFillColor(sf::Color::White);
+            waitingText.setPosition(150, 250);
+            window.draw(waitingText);
+            window.display();
+            
+            // Handle window events while waiting
+            sf::Event event;
+            while (window.pollEvent(event)) {
+                if (event.type == sf::Event::Closed)
+                    window.close();
+            }
         }
-    
-        if (receiveThread.joinable()) {
-            receiveThread.join();
-        }
+    }
+
+    if (receiveThread.joinable()) {
+        receiveThread.join();
+    }
 }
 };
 

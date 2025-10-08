@@ -48,6 +48,8 @@ struct GameState {
     bool gameActive;
     bool gameWon;
     bool gameFailed;
+    bool mechanicalReady;
+    bool electricalReady;
     bool playAgainRequested;
     bool mechanicalWantsReplay;
     bool electricalWantsReplay;
@@ -68,15 +70,17 @@ public:
         playersConnected = false;
         
         // Initialize game state
-        gameState.mechanical = {"Stopped", "Middle", "Closed", 5};
         gameState.electrical = {"Off", "Idle"};
-        gameState.machine = {100.0, 200.0};
-        gameState.targetPressure = 150.0;
-        gameState.targetTemperature = 300.0;
+        gameState.mechanical = {"Stopped", "Middle", "Closed", 5};
         gameState.timeLeft = 600;
-        gameState.gameActive = true;
+        gameState.targetPressure = 150.0;
+        gameState.machine = {100.0, 200.0};
+        gameState.targetTemperature = 300.0;
         gameState.gameWon = false;
+        gameState.gameActive = false;
         gameState.gameFailed = false;
+        gameState.mechanicalReady = false;
+        gameState.electricalReady = false;
         gameState.playAgainRequested = false;
         gameState.mechanicalWantsReplay = false;
         gameState.electricalWantsReplay = false;
@@ -178,6 +182,19 @@ public:
             if (bytesReceived > 0) {
                 buffer[bytesReceived] = '\0';
                 string message(buffer);
+
+                if (message.substr(0, 5) == "READY") {
+                lock_guard<mutex> lock(stateMutex);
+                gameState.mechanicalReady = true;
+                cout << "Mechanical player is ready!\n";
+                
+                // Check if both players are ready
+                if (gameState.mechanicalReady && gameState.electricalReady) {
+                    cout << "Both players ready! Starting game...\n";
+                    gameState.gameActive = true;
+                    sendGameStateToPlayers();
+                }
+            }
                 
                 // Parse mechanical input: "MECH|gear|lever|valve|dial"
                 if (message.substr(0, 5) == "MECH|") {
@@ -246,6 +263,19 @@ public:
             if (bytesReceived > 0) {
                 buffer[bytesReceived] = '\0';
                 string message(buffer);
+
+                if (message.substr(0, 5) == "READY") {
+                lock_guard<mutex> lock(stateMutex);
+                gameState.electricalReady = true;
+                cout << "Electrical player is ready!\n";
+                
+                // Check if both players are ready
+                if (gameState.mechanicalReady && gameState.electricalReady) {
+                    cout << "Both players ready! Starting game...\n";
+                    gameState.gameActive = true;
+                    sendGameStateToPlayers();
+                }
+            }
                 
                 // Parse electrical input: "ELEC|switchA|button"
                 if (message.substr(0, 5) == "ELEC|") {
@@ -298,26 +328,30 @@ public:
     }
 
     void resetGame() {
-    lock_guard<mutex> lock(stateMutex);
-    
-    // Reset machine state
-    gameState.mechanical = {"Stopped", "Middle", "Closed", 5};
-    gameState.electrical = {"Off", "Idle"};
-    gameState.machine = {100.0, 200.0};
-    
-    // Reset game state
-    gameState.timeLeft = 60;
-    gameState.gameActive = true;
-    gameState.gameWon = false;
-    gameState.gameFailed = false;
-    
-    // Reset play again flags
-    gameState.playAgainRequested = false;
-    gameState.mechanicalWantsReplay = false;
-    gameState.electricalWantsReplay = false;
-    
-    cout << "Game reset! Starting new round...\n";
-}
+        lock_guard<mutex> lock(stateMutex);
+        
+        // Reset machine state
+        gameState.mechanical = {"Stopped", "Middle", "Closed", 5};
+        gameState.electrical = {"Off", "Idle"};
+        gameState.machine = {100.0, 200.0};
+        
+        // Reset game state
+        gameState.timeLeft = 60;
+        gameState.gameActive = false; // Reset to waiting for ready
+        gameState.gameWon = false;
+        gameState.gameFailed = false;
+        
+        // Reset ready flags
+        gameState.mechanicalReady = false;
+        gameState.electricalReady = false;
+        
+        // Reset play again flags
+        gameState.playAgainRequested = false;
+        gameState.mechanicalWantsReplay = false;
+        gameState.electricalWantsReplay = false;
+        
+        cout << "Game reset! Waiting for players to be ready again...\n";
+    }
     // Your original game logic functions
     double gearEffect(string gear) {
         if (gear == "Clockwise") return 5.0;
@@ -412,7 +446,7 @@ void gameLoop() {
 
     // Main game loop - continues until players disconnect
     while (playersConnected) {
-        while (gameState.gameActive && playersConnected) {
+        while (gameState.gameActive && playersConnected && gameState.mechanicalReady && gameState.electricalReady) {
             updateGameState();
             sendGameStateToPlayers();
             this_thread::sleep_for(chrono::seconds(1));
