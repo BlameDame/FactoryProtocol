@@ -213,7 +213,7 @@ public:
                         tokens.push_back(token);
                     }
                     
-                    if (tokens.size() >= 11) {
+                    if (tokens.size() >= 13) {
                         try {
                             pressure = stod(tokens[1]);
                             temperature = stod(tokens[2]);
@@ -279,20 +279,31 @@ void run() {
     while (window.isOpen() && connected) {
         if (!playerReady) {
             // Show menu until player clicks start
+            gameStart = false;
             menus.MainMenu(window, font, gameStart, newGame);
             
             if (gameStart) {
                 // Player clicked start - they're now ready
                 playerReady = true;
                 sendPlayerReady();
-                cout << "Mechanical player is ready! Waiting for electrical player...\n";
             }
         } else if (gameActive) {
             // Both players ready and game is active - play normally
             handleEvents();
             // updateSpriteStates();
             render();
-        } else {
+        } else if (playerReady && !gameActive){
+
+            if (gameWon || gameFailed) {
+                // Game ended - reset and go back to menu
+                playerReady = false;
+                gameStart = false;
+                // Reset local game state flags
+                gameWon = false;
+                gameFailed = false;
+                continue;  // Go back to show menu
+            }
+
             // Player is ready but game not active yet - show waiting screen
             window.clear(sf::Color(50, 50, 50));
             Text waitingText("Waiting for other player...", font, 48);

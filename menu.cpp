@@ -65,6 +65,7 @@ int Menus::MainMenu(RenderWindow &window, Font &font, bool &gameStart, bool &new
                 {
                     if (startButton.getGlobalBounds().contains(event.mouseButton.x, event.mouseButton.y))
                     {
+                    
                     gameStart = true;
                     newGame = true;
                     return 1;

@@ -165,7 +165,9 @@ public:
                             (gameState.gameWon ? "1" : "0") + "|" +
                             (gameState.gameFailed ? "1" : "0") + "|" + 
                             (gameState.mechanicalWantsReplay ? "1" : "0") + "|" +
-                            (gameState.electricalWantsReplay ? "1" : "0") + "\n";
+                            (gameState.electricalWantsReplay ? "1" : "0") + "|" +
+                            (gameState.mechanicalReady ? "1" : "0") + "|" +
+                            (gameState.electricalReady ? "1" : "0") + "\n";
 
         ssize_t sent1 = send(mechanicalSocket, gameStateMsg.c_str(), gameStateMsg.length(), MSG_NOSIGNAL);
         ssize_t sent2 = send(electricalSocket, gameStateMsg.c_str(), gameStateMsg.length(), MSG_NOSIGNAL);
@@ -192,8 +194,8 @@ public:
                 if (gameState.mechanicalReady && gameState.electricalReady) {
                     cout << "Both players ready! Starting game...\n";
                     gameState.gameActive = true;
-                    sendGameStateToPlayers();
                 }
+                // sendGameStateToPlayers();
             }
                 
                 // Parse mechanical input: "MECH|gear|lever|valve|dial"
@@ -273,8 +275,8 @@ public:
                 if (gameState.mechanicalReady && gameState.electricalReady) {
                     cout << "Both players ready! Starting game...\n";
                     gameState.gameActive = true;
-                    sendGameStateToPlayers();
                 }
+                // sendGameStateToPlayers();
             }
                 
                 // Parse electrical input: "ELEC|switchA|button"
@@ -444,8 +446,16 @@ void gameLoop() {
     thread mechanicalThread(&GameServer::handleMechanicalPlayer, this);
     thread electricalThread(&GameServer::handleElectricalPlayer, this);
 
+    printf("Waiting for both players to be ready...\n");
+
     // Main game loop - continues until players disconnect
     while (playersConnected) {
+
+        while (!gameState.gameActive && playersConnected) {
+            this_thread::sleep_for(chrono::milliseconds(100));
+            sendGameStateToPlayers();
+        }
+
         while (gameState.gameActive && playersConnected && gameState.mechanicalReady && gameState.electricalReady) {
             updateGameState();
             sendGameStateToPlayers();
